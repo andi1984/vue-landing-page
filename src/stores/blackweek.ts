@@ -1,158 +1,137 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Tag, Deal } from '@/types/blackweek'
+import type { Deal } from '@/types/blackweek'
+import { supabase } from '@/lib/supabase'
+
+const CACHE_KEY = 'blackweek-deals'
+const CACHE_TIMESTAMP_KEY = 'blackweek-deals-timestamp'
+const CACHE_DURATION = 1000 * 60 * 30 // 30 minutes
 
 export const useBlackWeekStore = defineStore('blackweek', () => {
   // State
-  const tags = ref<Tag[]>([])
   const deals = ref<Deal[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const lastFetched = ref<Date | null>(null)
 
   // Computed
-  const tagCount = computed(() => tags.value.length)
   const dealCount = computed(() => deals.value.length)
-  const tagNames = computed(() => tags.value.map(tag => tag.name))
+  const sortedDeals = computed(() => {
+    return [...deals.value].sort((a, b) => {
+      // Sort by temperature (descending), then by created_at (descending)
+      const tempA = a.temperature ?? 0
+      const tempB = b.temperature ?? 0
 
-  // Actions - Tag Management
-  function addTag(tagName: string): boolean {
-    const trimmedName = tagName.trim()
-
-    if (!trimmedName) {
-      error.value = 'Tag name cannot be empty'
-      return false
-    }
-
-    // Check for duplicates (case-insensitive)
-    if (tags.value.some(tag => tag.name.toLowerCase() === trimmedName.toLowerCase())) {
-      error.value = 'Tag already exists'
-      return false
-    }
-
-    const newTag: Tag = {
-      id: crypto.randomUUID(),
-      name: trimmedName,
-      createdAt: new Date()
-    }
-
-    tags.value.push(newTag)
-    error.value = null
-    saveTags()
-    return true
-  }
-
-  function removeTag(tagId: string): void {
-    tags.value = tags.value.filter(tag => tag.id !== tagId)
-    saveTags()
-  }
-
-  function clearAllTags(): void {
-    tags.value = []
-    saveTags()
-  }
-
-  // Actions - Deal Management
-  function addDeal(deal: Omit<Deal, 'id' | 'foundAt'>): void {
-    const newDeal: Deal = {
-      ...deal,
-      id: crypto.randomUUID(),
-      foundAt: new Date()
-    }
-    deals.value.unshift(newDeal) // Add to beginning for newest first
-    saveDeals()
-  }
-
-  function removeDeal(dealId: string): void {
-    deals.value = deals.value.filter(deal => deal.id !== dealId)
-    saveDeals()
-  }
-
-  function clearAllDeals(): void {
-    deals.value = []
-    saveDeals()
-  }
-
-  // Persistence
-  function saveTags(): void {
-    try {
-      localStorage.setItem('blackweek-tags', JSON.stringify(tags.value))
-    } catch (e) {
-      console.error('Failed to save tags:', e)
-    }
-  }
-
-  function saveDeals(): void {
-    try {
-      localStorage.setItem('blackweek-deals', JSON.stringify(deals.value))
-    } catch (e) {
-      console.error('Failed to save deals:', e)
-    }
-  }
-
-  function loadFromLocalStorage(): void {
-    try {
-      const savedTags = localStorage.getItem('blackweek-tags')
-      if (savedTags) {
-        const parsedTags = JSON.parse(savedTags)
-        tags.value = parsedTags.map((tag: Tag) => ({
-          ...tag,
-          createdAt: new Date(tag.createdAt)
-        }))
+      if (tempB !== tempA) {
+        return tempB - tempA
       }
 
-      const savedDeals = localStorage.getItem('blackweek-deals')
-      if (savedDeals) {
-        const parsedDeals = JSON.parse(savedDeals)
-        deals.value = parsedDeals.map((deal: Deal) => ({
-          ...deal,
-          foundAt: new Date(deal.foundAt)
-        }))
-      }
-    } catch (e) {
-      console.error('Failed to load from localStorage:', e)
-      error.value = 'Failed to load saved data'
-    }
-  }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  })
 
-  // API Integration (placeholder for future use)
-  async function fetchDealsFromAPI(): Promise<void> {
+  // Actions
+  async function fetchDeals(forceRefresh = false): Promise<void> {
+    // Check if we have valid cache
+    if (!forceRefresh && isCacheValid()) {
+      loadFromCache()
+      return
+    }
+
     isLoading.value = true
     error.value = null
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/deals')
-      // const data = await response.json()
-      // deals.value = data
+      const { data, error: fetchError } = await supabase
+        .from('mydeals')
+        .select('*')
+        .order('temperature', { ascending: false })
+        .order('created_at', { ascending: false })
 
-      // Placeholder for now
-      console.log('API integration pending')
+      if (fetchError) {
+        throw fetchError
+      }
+
+      deals.value = data || []
+      lastFetched.value = new Date()
+
+      // Save to cache
+      saveToCache()
     } catch (e) {
-      error.value = 'Failed to fetch deals from API'
-      console.error('API fetch error:', e)
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+      error.value = `Failed to fetch deals: ${errorMessage}`
+      console.error('Supabase fetch error:', e)
+
+      // Try to load from cache as fallback
+      loadFromCache()
     } finally {
       isLoading.value = false
     }
   }
 
+  function saveToCache(): void {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(deals.value))
+      localStorage.setItem(CACHE_TIMESTAMP_KEY, new Date().toISOString())
+    } catch (e) {
+      console.error('Failed to save to cache:', e)
+    }
+  }
+
+  function loadFromCache(): void {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY)
+      const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY)
+
+      if (cached) {
+        deals.value = JSON.parse(cached)
+      }
+
+      if (timestamp) {
+        lastFetched.value = new Date(timestamp)
+      }
+    } catch (e) {
+      console.error('Failed to load from cache:', e)
+    }
+  }
+
+  function isCacheValid(): boolean {
+    const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY)
+
+    if (!timestamp) {
+      return false
+    }
+
+    const cacheTime = new Date(timestamp).getTime()
+    const now = new Date().getTime()
+
+    return now - cacheTime < CACHE_DURATION
+  }
+
+  function clearCache(): void {
+    localStorage.removeItem(CACHE_KEY)
+    localStorage.removeItem(CACHE_TIMESTAMP_KEY)
+    deals.value = []
+    lastFetched.value = null
+  }
+
+  // Initialize from cache
+  function initialize(): void {
+    loadFromCache()
+  }
+
   return {
     // State
-    tags,
     deals,
     isLoading,
     error,
+    lastFetched,
     // Computed
-    tagCount,
     dealCount,
-    tagNames,
+    sortedDeals,
     // Actions
-    addTag,
-    removeTag,
-    clearAllTags,
-    addDeal,
-    removeDeal,
-    clearAllDeals,
-    loadFromLocalStorage,
-    fetchDealsFromAPI
+    fetchDeals,
+    clearCache,
+    initialize
   }
 })

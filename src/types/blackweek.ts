@@ -1,25 +1,29 @@
-export interface Tag {
-  id: string
-  name: string
-  createdAt: Date
-}
-
+// Database schema matching Supabase mydeals table
 export interface Deal {
-  id: string
-  title: string
-  description?: string
-  price?: string
-  originalPrice?: string
-  discount?: string
-  url: string
-  tags: string[]
-  foundAt: Date
-  imageUrl?: string
+  id: number
+  created_at: string
+  title: string | null
+  temperature: number | null
+  referralLink: string | null
+  price: number | null
+  detailPageUrl: string | null
+  image: string | null
 }
 
 export interface BlackWeekState {
-  tags: Tag[]
   deals: Deal[]
   isLoading: boolean
   error: string | null
+  lastFetched: Date | null
+}
+
+// Temperature level helpers
+export type TemperatureLevel = 'cold' | 'warm' | 'hot' | 'fire'
+
+export interface TemperatureConfig {
+  level: TemperatureLevel
+  icon: string
+  color: string
+  bgColor: string
+  borderColor: string
 }
