@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useBlackWeekStore } from '@/stores/blackweek'
-import type { Deal } from '@/types/blackweek'
 
 const store = useBlackWeekStore()
 

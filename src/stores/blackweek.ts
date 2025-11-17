@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Tag, Deal, BlackWeekState } from '@/types/blackweek'
+import type { Tag, Deal } from '@/types/blackweek'
 
 export const useBlackWeekStore = defineStore('blackweek', () => {
   // State
