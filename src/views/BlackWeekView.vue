@@ -2,6 +2,8 @@
 import { onMounted } from 'vue'
 import { useBlackWeekStore } from '@/stores/blackweek'
 import DealList from '@/components/DealList.vue'
+import BlackWeekDashboard from '@/components/BlackWeekDashboard.vue'
+import DealFinder from '@/components/DealFinder.vue'
 
 const store = useBlackWeekStore()
 
@@ -74,6 +76,12 @@ async function handleRefresh() {
         </div>
       </div>
     </div>
+
+    <!-- Interactive Dashboard -->
+    <BlackWeekDashboard />
+
+    <!-- Deal Finder -->
+    <DealFinder />
 
     <!-- Deal List -->
     <DealList />
