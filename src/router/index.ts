@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import DashboardView from '@/views/DashboardView.vue'
 import SectionView from '@/views/SectionView.vue'
 
 const router = createRouter({
@@ -7,12 +8,16 @@ const router = createRouter({
     {
       path: '/',
       redirect: () => {
-        // This will be handled by App.vue after navigation data is loaded
-        return { name: 'section', params: { section: 'private' } }
+        return { name: 'dashboard', params: { section: 'private' } }
       }
     },
     {
       path: '/:section',
+      name: 'dashboard',
+      component: DashboardView,
+    },
+    {
+      path: '/old/:section',
       name: 'section',
       component: SectionView,
     },

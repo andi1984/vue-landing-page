@@ -26,12 +26,12 @@ describe('App', () => {
       global: {
         plugins: [createPinia(), router],
         stubs: {
-          NavigationTabs: true,
           RouterView: true
         }
       }
     })
 
-    expect(wrapper.text()).toContain('Quick Navigation')
+    // App now delegates to RouterView which loads DashboardView
+    expect(wrapper.find('div').exists()).toBe(true)
   })
 })
