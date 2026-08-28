@@ -8,6 +8,9 @@ import router from './router'
 import '@unocss/reset/tailwind.css'
 import 'uno.css'
 
+// Custom styles
+import './assets/styles/animations.css'
+
 const app = createApp(App)
 
 app.use(createPinia())
